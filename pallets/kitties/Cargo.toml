@@ -9,6 +9,8 @@ codec = { package = "parity-scale-codec", version = "2.0.0", default-features = 
 
 frame-support = { version = "3.0.0", default-features = false }
 frame-system = { version = "3.0.0", default-features = false }
+sp-io = { version = "3.0.0", default-features = false }
+pallet-randomness-collective-flip = { version = "3.0.0", default-features = false }
 
 [features]
 default = ["std"]
@@ -16,4 +18,6 @@ std = [
     "codec/std",
     "frame-support/std",
     "frame-system/std",
+    "sp-io/std",
+    "pallet-randomness-collective-flip/std",
 ]
