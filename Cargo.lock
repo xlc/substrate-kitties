@@ -3806,6 +3806,7 @@ dependencies = [
  "pallet-randomness-collective-flip",
  "parity-scale-codec",
  "sp-io",
+ "sp-std",
 ]
 
 [[package]]
