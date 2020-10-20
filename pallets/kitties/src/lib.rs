@@ -11,6 +11,9 @@ use sp_std::result::Result;
 
 pub use pallet::*;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq)]
 pub struct Kitty(pub [u8; 16]);
 
