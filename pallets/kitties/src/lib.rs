@@ -32,6 +32,7 @@ impl Kitty {
 
 pub trait Config: frame_system::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+	type Randomness: Randomness<Self::Hash>;
 }
 
 decl_storage! {
@@ -131,7 +132,7 @@ impl<T: Config> Module<T> {
 
 	fn random_value(sender: &T::AccountId) -> [u8; 16] {
 		let payload = (
-			<pallet_randomness_collective_flip::Module<T> as Randomness<T::Hash>>::random_seed(),
+			T::Randomness::random_seed(),
 			&sender,
 			<frame_system::Module<T>>::extrinsic_index(),
 		);
