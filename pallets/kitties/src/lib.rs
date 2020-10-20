@@ -3,7 +3,7 @@
 use codec::{Encode, Decode};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, StorageValue, StorageDoubleMap,
-	traits::Randomness, RuntimeDebug, dispatch::{DispatchResult, DispatchError},
+	traits::Randomness, RuntimeDebug, dispatch::DispatchError,
 };
 use sp_io::hashing::blake2_128;
 use frame_system::ensure_signed;
@@ -70,21 +70,16 @@ decl_module! {
 		pub fn create(origin) {
 			let sender = ensure_signed(origin)?;
 
-			NextKittyId::try_mutate(|next_id| -> DispatchResult {
-				let current_id = *next_id;
-				*next_id = next_id.checked_add(1).ok_or(Error::<T>::KittiesIdOverflow)?;
+			let kitty_id = Self::get_next_kitty_id()?;
 
-				let dna = Self::random_value(&sender);
+			let dna = Self::random_value(&sender);
 
-				// Create and store kitty
-				let kitty = Kitty(dna);
-				Kitties::<T>::insert(&sender, current_id, &kitty);
+			// Create and store kitty
+			let kitty = Kitty(dna);
+			Kitties::<T>::insert(&sender, kitty_id, &kitty);
 
-				// Emit event
-				Self::deposit_event(RawEvent::KittyCreated(sender, current_id, kitty));
-
-				Ok(())
-			})?;
+			// Emit event
+			Self::deposit_event(RawEvent::KittyCreated(sender, kitty_id, kitty));
 		}
 
 		/// Breed kitties
