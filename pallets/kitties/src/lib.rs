@@ -8,6 +8,9 @@ use frame_support::{
 use sp_io::hashing::blake2_128;
 use frame_system::ensure_signed;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq)]
 pub struct Kitty(pub [u8; 16]);
 
