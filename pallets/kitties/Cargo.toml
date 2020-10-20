@@ -5,24 +5,26 @@ authors = ["Bryan Chen"]
 edition = "2018"
 
 [dependencies]
+serde = { version = "1.0.101", optional = true, features = ["derive"] }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
 
 frame-support = { version = "3.0.0", default-features = false }
 frame-system = { version = "3.0.0", default-features = false }
 sp-io = { version = "3.0.0", default-features = false }
 sp-std = { version = "3.0.0", default-features = false }
+sp-runtime = { version = "3.0.0", default-features = false }
 
 [dev-dependencies]
-serde = { version = "1.0.119" }
 sp-core = { version = "3.0.0" }
-sp-runtime = { version = "3.0.0" }
 
 [features]
 default = ["std"]
 std = [
+	"serde",
     "codec/std",
     "frame-support/std",
     "frame-system/std",
     "sp-io/std",
     "sp-std/std",
+    "sp-runtime/std",
 ]

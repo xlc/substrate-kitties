@@ -2,11 +2,12 @@
 
 use codec::{Encode, Decode};
 use frame_support::{
-	decl_module, decl_storage, decl_event, decl_error, ensure, StorageValue, StorageDoubleMap,
+	decl_module, decl_storage, decl_event, decl_error, ensure, StorageValue, StorageDoubleMap, Parameter,
 	traits::Randomness, RuntimeDebug, dispatch::DispatchError,
 };
 use sp_io::hashing::blake2_128;
 use frame_system::ensure_signed;
+use sp_runtime::traits::{AtLeast32BitUnsigned, Bounded, One, CheckedAdd};
 
 #[cfg(test)]
 mod tests;
@@ -33,25 +34,27 @@ impl Kitty {
 pub trait Config: frame_system::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type Randomness: Randomness<Self::Hash>;
+	type KittyIndex: Parameter + AtLeast32BitUnsigned + Bounded + Default + Copy;
 }
 
 decl_storage! {
 	trait Store for Module<T: Config> as Kitties {
 		/// Stores all the kitties, key is the kitty id
-		pub Kitties get(fn kitties): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) u32 => Option<Kitty>;
+		pub Kitties get(fn kitties): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) T::KittyIndex => Option<Kitty>;
 		/// Stores the next kitty ID
-		pub NextKittyId get(fn next_kitty_id): u32;
+		pub NextKittyId get(fn next_kitty_id): T::KittyIndex;
 	}
 }
 
 decl_event! {
 	pub enum Event<T> where
 		<T as frame_system::Config>::AccountId,
+		<T as Config>::KittyIndex,
 	{
 		/// A kitty is created. \[owner, kitty_id, kitty\]
-		KittyCreated(AccountId, u32, Kitty),
+		KittyCreated(AccountId, KittyIndex, Kitty),
 		/// A new kitten is bred. \[owner, kitty_id, kitty\]
-		KittyBred(AccountId, u32, Kitty),
+		KittyBred(AccountId, KittyIndex, Kitty),
 	}
 }
 
@@ -88,7 +91,7 @@ decl_module! {
 
 		/// Breed kitties
 		#[weight = 1000]
-		pub fn breed(origin, kitty_id_1: u32, kitty_id_2: u32) {
+		pub fn breed(origin, kitty_id_1: T::KittyIndex, kitty_id_2: T::KittyIndex) {
 			let sender = ensure_signed(origin)?;
 			let kitty1 = Self::kitties(&sender, kitty_id_1).ok_or(Error::<T>::InvalidKittyId)?;
 			let kitty2 = Self::kitties(&sender, kitty_id_2).ok_or(Error::<T>::InvalidKittyId)?;
@@ -122,10 +125,10 @@ fn combine_dna(dna1: u8, dna2: u8, selector: u8) -> u8 {
 }
 
 impl<T: Config> Module<T> {
-	fn get_next_kitty_id() -> sp_std::result::Result<u32, DispatchError> {
-		NextKittyId::try_mutate(|next_id| -> sp_std::result::Result<u32, DispatchError> {
+	fn get_next_kitty_id() -> sp_std::result::Result<T::KittyIndex, DispatchError> {
+		NextKittyId::<T>::try_mutate(|next_id| -> sp_std::result::Result<T::KittyIndex, DispatchError> {
 			let current_id = *next_id;
-			*next_id = next_id.checked_add(1).ok_or(Error::<T>::KittiesIdOverflow)?;
+			*next_id = next_id.checked_add(&One::one()).ok_or(Error::<T>::KittiesIdOverflow)?;
 			Ok(current_id)
 		})
 	}
