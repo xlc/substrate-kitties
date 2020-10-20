@@ -31,7 +31,7 @@ impl Kitty {
 	}
 }
 
-pub trait Config: frame_system::Config {
+pub trait Config: pallet_balances::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type Randomness: Randomness<Self::Hash>;
 	type KittyIndex: Parameter + AtLeast32BitUnsigned + Bounded + Default + Copy;
@@ -43,6 +43,9 @@ decl_storage! {
 		pub Kitties get(fn kitties): double_map hasher(blake2_128_concat) T::AccountId, hasher(blake2_128_concat) T::KittyIndex => Option<Kitty>;
 		/// Stores the next kitty ID
 		pub NextKittyId get(fn next_kitty_id): T::KittyIndex;
+		/// Get kitty price. None means not for sale.
+		pub KittyPrices get(fn kitty_prices): map hasher(blake2_128_concat) T::KittyIndex => Option<T::Balance>;
+
 	}
 }
 
@@ -50,6 +53,7 @@ decl_event! {
 	pub enum Event<T> where
 		<T as frame_system::Config>::AccountId,
 		<T as Config>::KittyIndex,
+		<T as pallet_balances::Config>::Balance,
 	{
 		/// A kitty is created. \[owner, kitty_id, kitty\]
 		KittyCreated(AccountId, KittyIndex, Kitty),
@@ -57,6 +61,8 @@ decl_event! {
 		KittyBred(AccountId, KittyIndex, Kitty),
 		/// A kitty is transferred. \[from, to, kitty_id\]
 		KittyTransferred(AccountId, AccountId, KittyIndex),
+		/// The price for a kitty is updated. \[owner, kitty_id, price\]
+		KittyPriceUpdated(AccountId, KittyIndex, Option<Balance>),
 	}
 }
 
@@ -65,6 +71,7 @@ decl_error! {
 		KittiesIdOverflow,
 		InvalidKittyId,
 		SameGender,
+		NotOwner,
 	}
 }
 
@@ -139,6 +146,19 @@ decl_module! {
 
 				Ok(())
 			})?;
+		}
+
+		/// Set a price for a kitty for sale
+		/// None to delist the kitty
+		#[weight = 1000]
+		pub fn set_price(origin, kitty_id: T::KittyIndex, new_price: Option<T::Balance>) {
+			let sender = ensure_signed(origin)?;
+
+			ensure!(<Kitties<T>>::contains_key(&sender, kitty_id), Error::<T>::NotOwner);
+
+			KittyPrices::<T>::mutate_exists(kitty_id, |price| *price = new_price);
+
+			Self::deposit_event(RawEvent::KittyPriceUpdated(sender, kitty_id, new_price));
 		}
 	}
 }
