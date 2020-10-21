@@ -91,7 +91,14 @@ impl Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap().into();
+    let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+
+    pallet_balances::GenesisConfig::<Test>{
+		balances: vec![(200, 500)],
+    }.assimilate_storage(&mut t).unwrap();
+
+    let mut t: sp_io::TestExternalities = t.into();
+
     t.execute_with(|| System::set_block_number(1) );
     t
 }
@@ -148,6 +155,7 @@ fn can_breed() {
 fn can_transfer() {
     new_test_ext().execute_with(|| {
         assert_ok!(KittiesModule::create(Origin::signed(100)));
+        assert_ok!(KittiesModule::set_price(Origin::signed(100), 0, Some(10)));
 
         assert_noop!(KittiesModule::transfer(Origin::signed(101), 200, 0), Error::<Test>::InvalidKittyId);
 
@@ -157,6 +165,7 @@ fn can_transfer() {
 
         assert_eq!(KittiesModule::kitties(200, 0), Some(kitty));
         assert_eq!(Kitties::<Test>::contains_key(100, 0), false);
+        assert_eq!(KittyPrices::<Test>::contains_key(0), false);
 
         assert_eq!(last_event(), Event::kitties(RawEvent::KittyTransferred(100, 200, 0)));
     });
@@ -199,5 +208,36 @@ fn can_set_price() {
         assert_eq!(KittyPrices::<Test>::contains_key(0), false);
 
         assert_eq!(last_event(), Event::kitties(RawEvent::KittyPriceUpdated(100, 0, None)));
+    });
+}
+
+#[test]
+fn can_buy() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(KittiesModule::create(Origin::signed(100)));
+
+        let kitty = KittiesModule::kitties(100, 0).unwrap();
+
+        assert_noop!(KittiesModule::buy(Origin::signed(100), 100, 0, 10), Error::<Test>::BuyFromSelf);
+        assert_noop!(KittiesModule::buy(Origin::signed(200), 100, 1, 10), Error::<Test>::InvalidKittyId);
+        assert_noop!(KittiesModule::buy(Origin::signed(200), 100, 0, 10), Error::<Test>::NotForSale);
+
+        assert_ok!(KittiesModule::set_price(Origin::signed(100), 0, Some(600)));
+
+        assert_noop!(KittiesModule::buy(Origin::signed(200), 100, 0, 500), Error::<Test>::PriceTooLow);
+
+        assert_noop!(KittiesModule::buy(Origin::signed(200), 100, 0, 600), pallet_balances::Error::<Test, _>::InsufficientBalance);
+
+        assert_ok!(KittiesModule::set_price(Origin::signed(100), 0, Some(400)));
+
+        assert_ok!(KittiesModule::buy(Origin::signed(200), 100, 0, 500));
+
+        assert_eq!(KittyPrices::<Test>::contains_key(0), false);
+        assert_eq!(Kitties::<Test>::contains_key(100, 0), false);
+        assert_eq!(KittiesModule::kitties(200, 0), Some(kitty));
+        assert_eq!(Balances::free_balance(100), 400);
+        assert_eq!(Balances::free_balance(200), 100);
+
+        assert_eq!(last_event(), Event::kitties(RawEvent::KittySold(100, 200, 0, 400)));
     });
 }

@@ -3,7 +3,7 @@
 use codec::{Encode, Decode};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, StorageValue, StorageDoubleMap, Parameter,
-	traits::Randomness, RuntimeDebug, dispatch::{DispatchError, DispatchResult},
+	traits::{Randomness, Currency, ExistenceRequirement}, RuntimeDebug, dispatch::{DispatchError, DispatchResult},
 };
 use sp_io::hashing::blake2_128;
 use frame_system::ensure_signed;
@@ -63,6 +63,8 @@ decl_event! {
 		KittyTransferred(AccountId, AccountId, KittyIndex),
 		/// The price for a kitty is updated. \[owner, kitty_id, price\]
 		KittyPriceUpdated(AccountId, KittyIndex, Option<Balance>),
+		/// A kitty is sold. \[old_owner, new_owner, kitty_id, price\]
+		KittySold(AccountId, AccountId, KittyIndex, Balance),
 	}
 }
 
@@ -72,6 +74,9 @@ decl_error! {
 		InvalidKittyId,
 		SameGender,
 		NotOwner,
+		NotForSale,
+		PriceTooLow,
+		BuyFromSelf,
 	}
 }
 
@@ -142,6 +147,8 @@ decl_module! {
 
 				Kitties::<T>::insert(&to, kitty_id, kitty);
 
+				KittyPrices::<T>::remove(kitty_id);
+
 				Self::deposit_event(RawEvent::KittyTransferred(sender, to, kitty_id));
 
 				Ok(())
@@ -159,6 +166,32 @@ decl_module! {
 			KittyPrices::<T>::mutate_exists(kitty_id, |price| *price = new_price);
 
 			Self::deposit_event(RawEvent::KittyPriceUpdated(sender, kitty_id, new_price));
+		}
+
+		/// Buy a kitty
+		#[weight = 1000]
+		pub fn buy(origin, owner: T::AccountId, kitty_id: T::KittyIndex, max_price: T::Balance) {
+			let sender = ensure_signed(origin)?;
+
+			ensure!(sender != owner, Error::<T>::BuyFromSelf);
+
+			Kitties::<T>::try_mutate_exists(owner.clone(), kitty_id, |kitty| -> DispatchResult {
+				let kitty = kitty.take().ok_or(Error::<T>::InvalidKittyId)?;
+				
+				KittyPrices::<T>::try_mutate_exists(kitty_id, |price| -> DispatchResult {
+					let price = price.take().ok_or(Error::<T>::NotForSale)?;
+
+					ensure!(max_price >= price, Error::<T>::PriceTooLow);
+
+					<pallet_balances::Module<T> as Currency<T::AccountId>>::transfer(&sender, &owner, price, ExistenceRequirement::KeepAlive)?;
+
+					Kitties::<T>::insert(&sender, kitty_id, kitty);
+
+					Self::deposit_event(RawEvent::KittySold(owner, sender, kitty_id, price));
+					
+					Ok(())
+				})
+			})?;
 		}
 	}
 }
