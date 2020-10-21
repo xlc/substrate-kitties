@@ -31,11 +31,14 @@ impl Kitty {
 	}
 }
 
-pub trait Config: pallet_balances::Config {
+pub trait Config: frame_system::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type Randomness: Randomness<Self::Hash>;
 	type KittyIndex: Parameter + AtLeast32BitUnsigned + Bounded + Default + Copy;
+	type Currency: Currency<Self::AccountId>;
 }
+
+type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 decl_storage! {
 	trait Store for Module<T: Config> as Kitties {
@@ -44,7 +47,7 @@ decl_storage! {
 		/// Stores the next kitty ID
 		pub NextKittyId get(fn next_kitty_id): T::KittyIndex;
 		/// Get kitty price. None means not for sale.
-		pub KittyPrices get(fn kitty_prices): map hasher(blake2_128_concat) T::KittyIndex => Option<T::Balance>;
+		pub KittyPrices get(fn kitty_prices): map hasher(blake2_128_concat) T::KittyIndex => Option<BalanceOf<T>>;
 
 	}
 }
@@ -53,7 +56,7 @@ decl_event! {
 	pub enum Event<T> where
 		<T as frame_system::Config>::AccountId,
 		<T as Config>::KittyIndex,
-		<T as pallet_balances::Config>::Balance,
+		Balance = BalanceOf<T>,
 	{
 		/// A kitty is created. \[owner, kitty_id, kitty\]
 		KittyCreated(AccountId, KittyIndex, Kitty),
@@ -158,7 +161,7 @@ decl_module! {
 		/// Set a price for a kitty for sale
 		/// None to delist the kitty
 		#[weight = 1000]
-		pub fn set_price(origin, kitty_id: T::KittyIndex, new_price: Option<T::Balance>) {
+		pub fn set_price(origin, kitty_id: T::KittyIndex, new_price: Option<BalanceOf<T>>) {
 			let sender = ensure_signed(origin)?;
 
 			ensure!(<Kitties<T>>::contains_key(&sender, kitty_id), Error::<T>::NotOwner);
@@ -170,25 +173,25 @@ decl_module! {
 
 		/// Buy a kitty
 		#[weight = 1000]
-		pub fn buy(origin, owner: T::AccountId, kitty_id: T::KittyIndex, max_price: T::Balance) {
+		pub fn buy(origin, owner: T::AccountId, kitty_id: T::KittyIndex, max_price: BalanceOf<T>) {
 			let sender = ensure_signed(origin)?;
 
 			ensure!(sender != owner, Error::<T>::BuyFromSelf);
 
 			Kitties::<T>::try_mutate_exists(owner.clone(), kitty_id, |kitty| -> DispatchResult {
 				let kitty = kitty.take().ok_or(Error::<T>::InvalidKittyId)?;
-				
+
 				KittyPrices::<T>::try_mutate_exists(kitty_id, |price| -> DispatchResult {
 					let price = price.take().ok_or(Error::<T>::NotForSale)?;
 
 					ensure!(max_price >= price, Error::<T>::PriceTooLow);
 
-					<pallet_balances::Module<T> as Currency<T::AccountId>>::transfer(&sender, &owner, price, ExistenceRequirement::KeepAlive)?;
+					T::Currency::transfer(&sender, &owner, price, ExistenceRequirement::KeepAlive)?;
 
 					Kitties::<T>::insert(&sender, kitty_id, kitty);
 
 					Self::deposit_event(RawEvent::KittySold(owner, sender, kitty_id, price));
-					
+
 					Ok(())
 				})
 			})?;

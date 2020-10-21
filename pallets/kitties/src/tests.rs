@@ -87,6 +87,7 @@ impl Config for Test {
     type Event = Event;
     type Randomness = MockRandom;
     type KittyIndex = u32;
+    type Currency = Balances;
 }
 
 // Build genesis storage according to the mock runtime.
