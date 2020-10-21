@@ -3,7 +3,7 @@
 use codec::{Encode, Decode};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, StorageValue, StorageDoubleMap, Parameter,
-	traits::Randomness, RuntimeDebug, dispatch::DispatchError,
+	traits::Randomness, RuntimeDebug, dispatch::{DispatchError, DispatchResult},
 };
 use sp_io::hashing::blake2_128;
 use frame_system::ensure_signed;
@@ -55,6 +55,8 @@ decl_event! {
 		KittyCreated(AccountId, KittyIndex, Kitty),
 		/// A new kitten is bred. \[owner, kitty_id, kitty\]
 		KittyBred(AccountId, KittyIndex, Kitty),
+		/// A kitty is transferred. \[from, to, kitty_id\]
+		KittyTransferred(AccountId, AccountId, KittyIndex),
 	}
 }
 
@@ -116,6 +118,27 @@ decl_module! {
 			Kitties::<T>::insert(&sender, kitty_id, &new_kitty);
 
 			Self::deposit_event(RawEvent::KittyBred(sender, kitty_id, new_kitty));
+		}
+
+		/// Transfer a kitty to new owner
+		#[weight = 1000]
+		pub fn transfer(origin, to: T::AccountId, kitty_id: T::KittyIndex) {
+			let sender = ensure_signed(origin)?;
+
+			Kitties::<T>::try_mutate_exists(sender.clone(), kitty_id, |kitty| -> DispatchResult {
+				if sender == to {
+					ensure!(kitty.is_some(), Error::<T>::InvalidKittyId);
+					return Ok(());
+				}
+
+				let kitty = kitty.take().ok_or(Error::<T>::InvalidKittyId)?;
+
+				Kitties::<T>::insert(&to, kitty_id, kitty);
+
+				Self::deposit_event(RawEvent::KittyTransferred(sender, to, kitty_id));
+
+				Ok(())
+			})?;
 		}
 	}
 }
