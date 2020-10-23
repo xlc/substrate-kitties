@@ -3564,6 +3564,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "hex-literal",
+ "orml-nft",
  "pallet-aura",
  "pallet-balances",
  "pallet-grandpa",
@@ -3719,6 +3720,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77af24da69f9d9341038eba93a073b1fdaaa1b788221b00a69bce9e762cb32de"
 
 [[package]]
+name = "orml-nft"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6b52928f5bb44f1b87dee2a4bf10356475c79d8a97ab33042aa111d25ba3b5c"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "funty",
+ "parity-scale-codec",
+ "serde",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "orml-utilities"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f84d1a0ce4c65a8695cf8c41895c6161d2345214a4a413e674478f6a37968db"
+dependencies = [
+ "frame-support",
+ "funty",
+ "parity-scale-codec",
+ "serde",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "owning_ref"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3805,6 +3836,8 @@ version = "0.1.0"
 dependencies = [
  "frame-support",
  "frame-system",
+ "orml-nft",
+ "orml-utilities",
  "pallet-balances",
  "parity-scale-codec",
  "serde",

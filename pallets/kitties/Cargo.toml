@@ -14,6 +14,9 @@ sp-io = { version = "3.0.0", default-features = false }
 sp-std = { version = "3.0.0", default-features = false }
 sp-runtime = { version = "3.0.0", default-features = false }
 
+orml-nft = { version = "0.4.0", default-features = false }
+orml-utilities = { version = "0.4.0", default-features = false }
+
 [dev-dependencies]
 sp-core = { version = "3.0.0" }
 pallet-balances = { version = "3.0.0" }
@@ -28,4 +31,6 @@ std = [
     "sp-io/std",
     "sp-std/std",
     "sp-runtime/std",
+    "orml-nft/std",
+    "orml-utilities/std",
 ]
