@@ -2,6 +2,7 @@
 
 use super::*;
 
+use sp_std::prelude::*;
 use frame_system::RawOrigin;
 use frame_benchmarking::{benchmarks, whitelisted_caller, impl_benchmark_test_suite};
 #[allow(unused)]

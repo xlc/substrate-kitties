@@ -17,6 +17,8 @@ sp-runtime = { version = "3.0.0", default-features = false }
 orml-nft = { version = "0.4.0", default-features = false }
 orml-utilities = { version = "0.4.0", default-features = false }
 
+frame-benchmarking = { version = "3.1.0", default-features = false, optional = true }
+
 [dev-dependencies]
 sp-core = { version = "3.0.0" }
 pallet-balances = { version = "3.0.0" }
@@ -33,4 +35,9 @@ std = [
     "sp-runtime/std",
     "orml-nft/std",
     "orml-utilities/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking",
+	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
 ]
