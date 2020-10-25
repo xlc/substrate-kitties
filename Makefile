@@ -26,5 +26,11 @@ init: toolchain build-full
 benchmark:
 	cargo run --manifest-path node/Cargo.toml --features runtime-benchmarks -- benchmark --extrinsic '*' --pallet '*'
 
+benchmark-output:
+	cargo run --manifest-path node/Cargo.toml --release --features runtime-benchmarks -- benchmark --extrinsic '*' --pallet pallet_kitties --output runtime/src/weights --execution=wasm
+
+benchmark-traits:
+	cargo run --manifest-path node/Cargo.toml --release --features runtime-benchmarks -- benchmark --extrinsic '*' --pallet pallet_kitties --output pallets/kitties/src/weights.rs --template=frame-weight-template.hbs
+
 test-benchmark:
 	cargo test --manifest-path pallets/kitties/Cargo.toml --features runtime-benchmarks -- --nocapture

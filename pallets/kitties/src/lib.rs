@@ -17,6 +17,9 @@ use serde::{Deserialize, Serialize};
 mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+mod weights;
+
+pub use weights::WeightInfo;
 
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq)]
@@ -42,6 +45,7 @@ pub trait Config: orml_nft::Config<TokenData = Kitty, ClassData = ()> {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type Randomness: Randomness<Self::Hash>;
 	type Currency: Currency<Self::AccountId>;
+	type WeightInfo: WeightInfo;
 }
 
 type KittyIndexOf<T> = <T as orml_nft::Config>::TokenId;
@@ -100,7 +104,7 @@ decl_module! {
 		fn deposit_event() = default;
 
 		/// Create a new kitty
-		#[weight = 1000]
+		#[weight = T::WeightInfo::create()]
 		pub fn create(origin) {
 			let sender = ensure_signed(origin)?;
 			let dna = Self::random_value(&sender);
@@ -114,7 +118,7 @@ decl_module! {
 		}
 
 		/// Breed kitties
-		#[weight = 1000]
+		#[weight = T::WeightInfo::breed()]
 		pub fn breed(origin, kitty_id_1: KittyIndexOf<T>, kitty_id_2: KittyIndexOf<T>) {
 			let sender = ensure_signed(origin)?;
 			let kitty1 = Self::kitties(&sender, kitty_id_1).ok_or(Error::<T>::InvalidKittyId)?;
@@ -140,7 +144,7 @@ decl_module! {
 		}
 
 		/// Transfer a kitty to new owner
-		#[weight = 1000]
+		#[weight = T::WeightInfo::transfer()]
 		pub fn transfer(origin, to: T::AccountId, kitty_id: KittyIndexOf<T>) {
 			let sender = ensure_signed(origin)?;
 
@@ -155,7 +159,7 @@ decl_module! {
 
 		/// Set a price for a kitty for sale
 		/// None to delist the kitty
-		#[weight = 1000]
+		#[weight = T::WeightInfo::set_price()]
 		pub fn set_price(origin, kitty_id: KittyIndexOf<T>, new_price: Option<BalanceOf<T>>) {
 			let sender = ensure_signed(origin)?;
 
@@ -167,7 +171,7 @@ decl_module! {
 		}
 
 		/// Buy a kitty
-		#[weight = 1000]
+		#[weight = T::WeightInfo::buy()]
 		pub fn buy(origin, owner: T::AccountId, kitty_id: KittyIndexOf<T>, max_price: BalanceOf<T>) {
 			let sender = ensure_signed(origin)?;
 
