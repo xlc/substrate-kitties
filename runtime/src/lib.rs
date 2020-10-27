@@ -287,8 +287,16 @@ impl pallet_kitties::Config for Runtime {
 	type Event = Event;
 	type Randomness = RandomnessCollectiveFlip;
 	type Currency = Balances;
-	type WeightInfo = weights::pallet_kitties::WeightInfo;
-	type DefaultDifficulty = DefaultDifficulty<Runtime>;
+	type WeightInfo = weights::pallet_kitties::WeightInfo<Runtime>;
+	type DefaultDifficulty = DefaultDifficulty;
+}
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+where
+	Call: From<C>,
+{
+	type OverarchingCall = Call;
+	type Extrinsic = UncheckedExtrinsic;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -309,7 +317,7 @@ construct_runtime!(
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
 		// Substrate Kitties module
-		Kitties: pallet_kitties::{Module, Storage, Call, Event<T>, Config},
+		Kitties: pallet_kitties::{Module, Storage, Call, Event<T>, Config, ValidateUnsigned},
 		NFT: orml_nft::{Module, Storage},
 	}
 );

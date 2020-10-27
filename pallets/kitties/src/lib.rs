@@ -6,12 +6,14 @@ use frame_support::{
 	traits::{Randomness, Currency, ExistenceRequirement, Get}, RuntimeDebug, dispatch::DispatchResult,
 };
 use sp_io::hashing::blake2_128;
-use frame_system::{ensure_signed, ensure_none};
-use sp_std::vec::Vec;
+use frame_system::{ensure_signed, ensure_none, offchain::{SendTransactionTypes, SubmitTransaction}};
+use sp_std::{vec::Vec, convert::TryInto};
 use sp_runtime::{
 	transaction_validity::{
 		InvalidTransaction, TransactionSource, TransactionValidity, ValidTransaction,
 	},
+	offchain::storage_lock::{StorageLock, BlockAndTime},
+	RandomNumberGenerator, traits::BlakeTwo256,
 };
 use orml_utilities::with_transaction_result;
 use orml_nft::Module as NftModule;
@@ -46,7 +48,7 @@ impl Kitty {
 	}
 }
 
-pub trait Config: orml_nft::Config<TokenData = Kitty, ClassData = ()> {
+pub trait Config: orml_nft::Config<TokenData = Kitty, ClassData = ()> + SendTransactionTypes<Call<Self>> {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type Randomness: Randomness<Self::Hash>;
 	type Currency: Currency<Self::AccountId>;
@@ -198,6 +200,10 @@ decl_module! {
 
 			Self::do_breed(kitty1.owner, kitty1.data, kitty2.data)?;
 		}
+
+		fn offchain_worker(_now: T::BlockNumber) {
+			let _ = Self::run_offchain_worker();
+		}
 	}
 }
 
@@ -258,6 +264,53 @@ impl<T: Config> Module<T> {
 		let difficulty = T::DefaultDifficulty::get();
 
 		hash_value < (u128::max_value() / difficulty as u128)
+	}
+
+	fn run_offchain_worker() -> Result<(), ()> {
+		let mut lock = StorageLock::<'_, BlockAndTime<frame_system::Module<T>>>::with_block_deadline(&b"kitties/lock"[..], 1);
+		let _guard = lock.try_lock().map_err(|_| ())?;
+
+		let random_seed = sp_io::offchain::random_seed();
+		let mut rng = RandomNumberGenerator::<BlakeTwo256>::new(random_seed.into());
+
+		// this only support if kitty_count <= u32::max_value()
+		let kitty_count = TryInto::<u32>::try_into(orml_nft::Module::<T>::next_token_id(Self::class_id())).map_err(|_| ())?;
+
+		const MAX_ITERATIONS: u128 = 500;
+
+		let nonce = Self::auto_breed_nonce();
+
+		let mut remaining_iterations = MAX_ITERATIONS;
+
+		let (kitty_1, kitty_2) = loop {
+			let kitty_id_1: KittyIndexOf<T> = rng.pick_u32(kitty_count).into();
+			let kitty_id_2: KittyIndexOf<T> = rng.pick_u32(kitty_count).into();
+
+			let kitty_1 = NftModule::<T>::tokens(Self::class_id(), kitty_id_1).ok_or(())?;
+			let kitty_2 = NftModule::<T>::tokens(Self::class_id(), kitty_id_2).ok_or(())?;
+
+			if kitty_1.data.gender() != kitty_2.data.gender() {
+				break (kitty_id_1, kitty_id_2);
+			}
+
+			remaining_iterations -= 1;
+
+			if remaining_iterations == 0 {
+				return Err(());
+			}
+		};
+
+		let solution_prefix = rng.pick_u32(u32::max_value() - 1) as u128;
+
+		for i in 0 .. remaining_iterations {
+			let solution = (solution_prefix << 32) + i;
+			if Self::validate_solution(kitty_1, kitty_2, nonce, solution) {
+				let _ = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(Call::<T>::auto_breed(kitty_1, kitty_2, nonce, solution).into());
+				break;
+			}
+		}
+
+		Ok(())
 	}
 }
 
