@@ -279,11 +279,16 @@ impl orml_nft::Config for Runtime {
 	type TokenData = pallet_kitties::Kitty;
 }
 
+parameter_types! {
+	pub const DefaultDifficulty: u32 = 100;
+}
+
 impl pallet_kitties::Config for Runtime {
 	type Event = Event;
 	type Randomness = RandomnessCollectiveFlip;
 	type Currency = Balances;
-	type WeightInfo = weights::pallet_kitties::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_kitties::WeightInfo;
+	type DefaultDifficulty = DefaultDifficulty<Runtime>;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

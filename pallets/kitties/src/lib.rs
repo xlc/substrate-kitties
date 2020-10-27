@@ -3,11 +3,16 @@
 use codec::{Encode, Decode};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, StorageValue,
-	traits::{Randomness, Currency, ExistenceRequirement}, RuntimeDebug, dispatch::DispatchResult,
+	traits::{Randomness, Currency, ExistenceRequirement, Get}, RuntimeDebug, dispatch::DispatchResult,
 };
 use sp_io::hashing::blake2_128;
-use frame_system::ensure_signed;
+use frame_system::{ensure_signed, ensure_none};
 use sp_std::vec::Vec;
+use sp_runtime::{
+	transaction_validity::{
+		InvalidTransaction, TransactionSource, TransactionValidity, ValidTransaction,
+	},
+};
 use orml_utilities::with_transaction_result;
 use orml_nft::Module as NftModule;
 #[cfg(feature = "std")]
@@ -46,6 +51,7 @@ pub trait Config: orml_nft::Config<TokenData = Kitty, ClassData = ()> {
 	type Randomness: Randomness<Self::Hash>;
 	type Currency: Currency<Self::AccountId>;
 	type WeightInfo: WeightInfo;
+	type DefaultDifficulty: Get<u32>;
 }
 
 type KittyIndexOf<T> = <T as orml_nft::Config>::TokenId;
@@ -57,6 +63,8 @@ decl_storage! {
 		pub KittyPrices get(fn kitty_prices): map hasher(blake2_128_concat) KittyIndexOf<T> => Option<BalanceOf<T>>;
 		/// The class id for orml_nft
 		pub ClassId get(fn class_id): T::ClassId;
+		/// Nonce for auto breed to prevent replay attack
+		pub AutoBreedNonce get(fn auto_breed_nonce): u32;
 	}
 	add_extra_genesis {
 		build(|_config| {
@@ -100,6 +108,9 @@ decl_error! {
 decl_module! {
 	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
+
+		/// Default difficulty for auto breed
+		const DefaultDifficulty: u32 = T::DefaultDifficulty::get();
 
 		fn deposit_event() = default;
 
@@ -177,6 +188,16 @@ decl_module! {
 				})
 			})?;
 		}
+
+		#[weight = 1000]
+		pub fn auto_breed(origin, kitty_id_1: KittyIndexOf<T>, kitty_id_2: KittyIndexOf<T>, _nonce: u32, _solution: u128) {
+			ensure_none(origin)?;
+
+			let kitty1 = NftModule::<T>::tokens(Self::class_id(), kitty_id_1).ok_or(Error::<T>::InvalidKittyId)?;
+			let kitty2 = NftModule::<T>::tokens(Self::class_id(), kitty_id_2).ok_or(Error::<T>::InvalidKittyId)?;
+
+			Self::do_breed(kitty1.owner, kitty1.data, kitty2.data)?;
+		}
 	}
 }
 
@@ -228,5 +249,40 @@ impl<T: Config> Module<T> {
 		Self::deposit_event(RawEvent::KittyBred(owner, kitty_id, new_kitty));
 
 		Ok(())
+	}
+
+	fn validate_solution(kitty_id_1: KittyIndexOf<T>, kitty_id_2: KittyIndexOf<T>, nonce: u32, solution: u128) -> bool {
+		let payload = (kitty_id_1, kitty_id_2, nonce, solution);
+		let hash = payload.using_encoded(blake2_128);
+		let hash_value = u128::from_le_bytes(hash);
+		let difficulty = T::DefaultDifficulty::get();
+
+		hash_value < (u128::max_value() / difficulty as u128)
+	}
+}
+
+impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
+	type Call = Call<T>;
+
+	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+		match *call {
+			Call::auto_breed(kitty_id_1, kitty_id_2, nonce, solution) => {
+				if Self::validate_solution(kitty_id_1, kitty_id_2, nonce, solution) {
+					if nonce != Self::auto_breed_nonce() {
+						return InvalidTransaction::BadProof.into();
+					}
+
+					AutoBreedNonce::mutate(|nonce| *nonce = nonce.saturating_add(1));
+
+					ValidTransaction::with_tag_prefix("kitties")
+						.longevity(64_u64)
+						.propagate(true)
+						.build()
+				} else {
+					InvalidTransaction::BadProof.into()
+				}
+			},
+			_ => InvalidTransaction::Call.into(),
+		}
 	}
 }
