@@ -272,6 +272,9 @@ impl pallet_template::Config for Runtime {
 	type Event = Event;
 }
 
+impl pallet_kitties::Config for Runtime {
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub enum Runtime where
@@ -289,6 +292,8 @@ construct_runtime!(
 		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template::{Pallet, Call, Storage, Event<T>},
+		// Substrate Kitties pallet
+		Kitties: pallet_kitties::{Pallet},
 	}
 );
 
