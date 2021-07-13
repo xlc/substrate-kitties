@@ -11,6 +11,7 @@ frame-support = { git = 'https://github.com/paritytech/substrate.git', branch = 
 frame-system = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8', default-features = false }
 sp-io = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8', default-features = false }
 sp-runtime = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8', default-features = false }
+sp-std = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8', default-features = false }
 pallet-randomness-collective-flip = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8', default-features = false }
 
 [features]
@@ -21,5 +22,6 @@ std = [
 	"frame-system/std",
 	"sp-io/std",
 	"sp-runtime/std",
+	"sp-std/std",
 	"pallet-randomness-collective-flip/std",
 ]

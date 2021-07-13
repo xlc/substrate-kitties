@@ -3929,6 +3929,7 @@ dependencies = [
  "parity-scale-codec",
  "sp-io",
  "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
