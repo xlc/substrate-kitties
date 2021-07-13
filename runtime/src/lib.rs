@@ -293,7 +293,7 @@ construct_runtime!(
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template::{Pallet, Call, Storage, Event<T>},
 		// Substrate Kitties pallet
-		Kitties: pallet_kitties::{Pallet},
+		Kitties: pallet_kitties::{Pallet, Storage},
 	}
 );
 
