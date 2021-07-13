@@ -82,21 +82,18 @@ pub mod pallet {
 		pub fn create(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			NextKittyId::<T>::try_mutate(|next_id| -> DispatchResult {
-				let current_id = *next_id;
-				*next_id = next_id.checked_add(1).ok_or(ArithmeticError::Overflow)?;
+			let kitty_id = Self::get_next_kitty_id()?;
 
-				let dna = Self::random_value(&sender);
+			let dna = Self::random_value(&sender);
 
-				// Create and store kitty
-				let kitty = Kitty(dna);
-				Kitties::<T>::insert(&sender, current_id, &kitty);
+			// Create and store kitty
+			let kitty = Kitty(dna);
+			Kitties::<T>::insert(&sender, kitty_id, &kitty);
 
-				// Emit event
-				Self::deposit_event(Event::KittyCreated(sender, current_id, kitty));
+			// Emit event
+			Self::deposit_event(Event::KittyCreated(sender, kitty_id, kitty));
 
-				Ok(())
-			})
+			Ok(())
 		}
 
 		/// Breed kitties
