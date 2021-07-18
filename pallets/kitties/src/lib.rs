@@ -2,7 +2,7 @@
 
 use frame_support::{
 	pallet_prelude::*,
-	traits::Randomness, Parameter,
+	traits::{Randomness, Currency, ExistenceRequirement}, Parameter,
 };
 use frame_system::pallet_prelude::*;
 use sp_runtime::{ArithmeticError, traits::{AtLeast32BitUnsigned, Bounded, One, CheckedAdd}};
@@ -70,7 +70,9 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::AccountId = "AccountId", T::KittyIndex = "KittyIndex", Option<T::Balance> = "Option<Balance>")]
+	#[pallet::metadata(
+		T::AccountId = "AccountId", T::KittyIndex = "KittyIndex", Option<T::Balance> = "Option<Balance>", T::Balance = "Balance",
+	)]
 	pub enum Event<T: Config> {
 		/// A kitty is created. \[owner, kitty_id, kitty\]
 		KittyCreated(T::AccountId, T::KittyIndex, Kitty),
@@ -80,6 +82,8 @@ pub mod pallet {
 		KittyTransferred(T::AccountId, T::AccountId, T::KittyIndex),
 		/// The price for a kitty is updated. \[owner, kitty_id, price\]
 		KittyPriceUpdated(T::AccountId, T::KittyIndex, Option<T::Balance>),
+		/// A kitty is sold. \[old_owner, new_owner, kitty_id, price\]
+		KittySold(T::AccountId, T::AccountId, T::KittyIndex, T::Balance),
 	}
 
 	#[pallet::error]
@@ -87,6 +91,9 @@ pub mod pallet {
 		InvalidKittyId,
 		SameGender,
 		NotOwner,
+		NotForSale,
+		PriceTooLow,
+		BuyFromSelf,
 	}
 
 	#[pallet::pallet]
@@ -161,6 +168,8 @@ pub mod pallet {
 
 				Kitties::<T>::insert(&to, kitty_id, kitty);
 
+				KittyPrices::<T>::remove(kitty_id);
+
 				Self::deposit_event(Event::KittyTransferred(sender, to, kitty_id));
 
 				Ok(())
@@ -180,6 +189,32 @@ pub mod pallet {
 			Self::deposit_event(Event::KittyPriceUpdated(sender, kitty_id, new_price));
 
 			Ok(())
+		}
+
+		/// Buy a kitty
+		#[pallet::weight(1000)]
+		pub fn buy(origin: OriginFor<T>, owner: T::AccountId, kitty_id: T::KittyIndex, max_price: T::Balance) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			ensure!(sender != owner, Error::<T>::BuyFromSelf);
+
+			Kitties::<T>::try_mutate_exists(owner.clone(), kitty_id, |kitty| -> DispatchResult {
+				let kitty = kitty.take().ok_or(Error::<T>::InvalidKittyId)?;
+
+				KittyPrices::<T>::try_mutate_exists(kitty_id, |price| -> DispatchResult {
+					let price = price.take().ok_or(Error::<T>::NotForSale)?;
+
+					ensure!(max_price >= price, Error::<T>::PriceTooLow);
+
+					<pallet_balances::Pallet<T> as Currency<T::AccountId>>::transfer(&sender, &owner, price, ExistenceRequirement::KeepAlive)?;
+
+					Kitties::<T>::insert(&sender, kitty_id, kitty);
+
+					Self::deposit_event(Event::KittySold(owner, sender, kitty_id, price));
+
+					Ok(())
+				})
+			})
 		}
 	}
 }
