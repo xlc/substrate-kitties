@@ -22,3 +22,9 @@ purge:
 restart: purge run
 
 init: toolchain build-full
+
+benchmark:
+	cargo run --manifest-path node/Cargo.toml --features runtime-benchmarks -- benchmark --extrinsic '*' --pallet '*' --execution=wasm --wasm-execution=compiled
+
+test-benchmark:
+	cargo test --manifest-path pallets/kitties/Cargo.toml --features runtime-benchmarks -- --nocapture
