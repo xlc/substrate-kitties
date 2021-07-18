@@ -13,10 +13,10 @@ frame-system = { git = 'https://github.com/paritytech/substrate.git', branch = '
 sp-io = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8', default-features = false }
 sp-runtime = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8', default-features = false }
 sp-std = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8', default-features = false }
-pallet-balances = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8', default-features = false }
 
 [dev-dependencies]
 sp-core = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8' }
+pallet-balances = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8' }
 
 [features]
 default = ["std"]
@@ -28,5 +28,4 @@ std = [
 	"sp-io/std",
 	"sp-runtime/std",
 	"sp-std/std",
-	"pallet-balances/std",
 ]
