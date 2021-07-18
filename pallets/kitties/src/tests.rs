@@ -66,6 +66,7 @@ impl Randomness<H256, u64> for MockRandom {
 impl Config for Test {
 	type Event = Event;
 	type Randomness = MockRandom;
+	type KittyIndex = u32;
 }
 
 // Build genesis storage according to the mock runtime.
