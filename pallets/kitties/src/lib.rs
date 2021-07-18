@@ -38,7 +38,7 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + pallet_balances::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		type KittyIndex: Parameter + AtLeast32BitUnsigned + Bounded + Default + Copy;
@@ -59,9 +59,18 @@ pub mod pallet {
 	#[pallet::getter(fn next_kitty_id)]
 	pub type NextKittyId<T: Config> = StorageValue<_, T::KittyIndex, ValueQuery>;
 
+	/// Get kitty price. None means not for sale.
+	#[pallet::storage]
+	#[pallet::getter(fn kitty_prices)]
+	pub type KittyPrices<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat, T::KittyIndex,
+		T::Balance, OptionQuery
+	>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::AccountId = "AccountId", T::KittyIndex = "KittyIndex")]
+	#[pallet::metadata(T::AccountId = "AccountId", T::KittyIndex = "KittyIndex", Option<T::Balance> = "Option<Balance>")]
 	pub enum Event<T: Config> {
 		/// A kitty is created. \[owner, kitty_id, kitty\]
 		KittyCreated(T::AccountId, T::KittyIndex, Kitty),
@@ -69,12 +78,15 @@ pub mod pallet {
 		KittyBred(T::AccountId, T::KittyIndex, Kitty),
 		/// A kitty is transferred. \[from, to, kitty_id\]
 		KittyTransferred(T::AccountId, T::AccountId, T::KittyIndex),
+		/// The price for a kitty is updated. \[owner, kitty_id, price\]
+		KittyPriceUpdated(T::AccountId, T::KittyIndex, Option<T::Balance>),
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
 		InvalidKittyId,
 		SameGender,
+		NotOwner,
 	}
 
 	#[pallet::pallet]
@@ -153,6 +165,21 @@ pub mod pallet {
 
 				Ok(())
 			})
+		}
+
+		/// Set a price for a kitty for sale
+ 		/// None to delist the kitty
+		#[pallet::weight(1000)]
+		pub fn set_price(origin: OriginFor<T>, kitty_id: T::KittyIndex, new_price: Option<T::Balance>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			ensure!(<Kitties<T>>::contains_key(&sender, kitty_id), Error::<T>::NotOwner);
+
+			KittyPrices::<T>::mutate_exists(kitty_id, |price| *price = new_price);
+
+			Self::deposit_event(Event::KittyPriceUpdated(sender, kitty_id, new_price));
+
+			Ok(())
 		}
 	}
 }

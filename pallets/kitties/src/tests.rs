@@ -18,6 +18,7 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		KittiesModule: kitties::{Pallet, Call, Storage, Event<T>},
 	}
 );
@@ -45,12 +46,27 @@ impl frame_system::Config for Test {
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
-	type AccountData = ();
+	type AccountData = pallet_balances::AccountData<u64>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
+}
+
+parameter_types! {
+	pub const ExistentialDeposit: u64 = 1;
+}
+impl pallet_balances::Config for Test {
+	type MaxLocks = ();
+	type Balance = u64;
+	type Event = Event;
+	type DustRemoval = ();
+	type ExistentialDeposit = ExistentialDeposit;
+	type AccountStore = System;
+	type WeightInfo = ();
+	type MaxReserves = ();
+	type ReserveIdentifier = ();
 }
 
 parameter_types! {
@@ -155,5 +171,25 @@ fn handle_self_transfer() {
 
 		// no transfer event because no actual transfer is executed
 		assert_eq!(System::events().len(), 0);
+	});
+}
+
+#[test]
+fn can_set_price() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(KittiesModule::create(Origin::signed(100)));
+
+		assert_noop!(KittiesModule::set_price(Origin::signed(200), 0, Some(10)), Error::<Test>::NotOwner);
+
+		assert_ok!(KittiesModule::set_price(Origin::signed(100), 0, Some(10)));
+
+		System::assert_last_event(Event::KittiesModule(crate::Event::KittyPriceUpdated(100, 0, Some(10))));
+
+		assert_eq!(KittiesModule::kitty_prices(0), Some(10));
+
+		assert_ok!(KittiesModule::set_price(Origin::signed(100), 0, None));
+		assert_eq!(KittyPrices::<Test>::contains_key(0), false);
+
+		System::assert_last_event(Event::KittiesModule(crate::Event::KittyPriceUpdated(100, 0, None)));
 	});
 }
