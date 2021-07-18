@@ -14,6 +14,8 @@ sp-io = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkado
 sp-runtime = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8', default-features = false }
 sp-std = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8', default-features = false }
 
+orml-nft = { git = 'https://github.com/open-web3-stack/open-runtime-module-library.git', rev = '8f0d824fb33e6430282453e45c4a64b89dc5a44a', default-features = false }
+
 [dev-dependencies]
 sp-core = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8' }
 pallet-balances = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.8' }
@@ -28,4 +30,5 @@ std = [
 	"sp-io/std",
 	"sp-runtime/std",
 	"sp-std/std",
+	"orml-nft/std",
 ]

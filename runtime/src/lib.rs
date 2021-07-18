@@ -275,8 +275,21 @@ impl pallet_template::Config for Runtime {
 impl pallet_kitties::Config for Runtime {
 	type Event = Event;
 	type Randomness = RandomnessCollectiveFlip;
-	type KittyIndex = u32;
 	type Currency = Balances;
+}
+
+parameter_types! {
+	pub const MaxClassMetadata: u32 = 0;
+	pub const MaxTokenMetadata: u32 = 0;
+}
+
+impl orml_nft::Config for Runtime {
+	type ClassId = u32;
+	type TokenId = u32;
+	type ClassData = ();
+	type TokenData = pallet_kitties::Kitty;
+	type MaxClassMetadata = MaxClassMetadata;
+	type MaxTokenMetadata = MaxTokenMetadata;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -297,7 +310,8 @@ construct_runtime!(
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template::{Pallet, Call, Storage, Event<T>},
 		// Substrate Kitties pallet
-		Kitties: pallet_kitties::{Pallet, Storage, Call, Event<T>},
+		Kitties: pallet_kitties::{Pallet, Storage, Call, Event<T>, Config},
+		Nft: orml_nft::{Pallet, Storage, Config<T>},
 	}
 );
 

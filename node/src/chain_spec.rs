@@ -153,5 +153,7 @@ fn testnet_genesis(
 			// Assign network admin rights.
 			key: root_key,
 		},
+		kitties: Default::default(),
+		nft: Default::default(),
 	}
 }

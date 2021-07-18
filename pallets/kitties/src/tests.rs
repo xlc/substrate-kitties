@@ -19,7 +19,8 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		KittiesModule: kitties::{Pallet, Call, Storage, Event<T>},
+		KittiesModule: kitties::{Pallet, Call, Storage, Event<T>, Config},
+		Nft: orml_nft::{Pallet, Storage, Config<T>},
 	}
 );
 
@@ -79,10 +80,23 @@ impl Randomness<H256, u64> for MockRandom {
     }
 }
 
+parameter_types! {
+	pub const MaxClassMetadata: u32 = 0;
+	pub const MaxTokenMetadata: u32 = 0;
+}
+
+impl orml_nft::Config for Test {
+	type ClassId = u32;
+	type TokenId = u32;
+	type ClassData = ();
+	type TokenData = Kitty;
+	type MaxClassMetadata = MaxClassMetadata;
+	type MaxTokenMetadata = MaxTokenMetadata;
+}
+
 impl Config for Test {
 	type Event = Event;
 	type Randomness = MockRandom;
-	type KittyIndex = u32;
 	type Currency = Balances;
 }
 
@@ -93,6 +107,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	pallet_balances::GenesisConfig::<Test>{
 		balances: vec![(200, 500)],
 	}.assimilate_storage(&mut t).unwrap();
+
+	<crate::GenesisConfig as GenesisBuild<Test>>::assimilate_storage(&crate::GenesisConfig::default(), &mut t).unwrap();
 
 	let mut t: sp_io::TestExternalities = t.into();
 
@@ -107,8 +123,8 @@ fn can_create() {
 
 		let kitty = Kitty([59, 250, 138, 82, 209, 39, 141, 109, 163, 238, 183, 145, 235, 168, 18, 122]);
 
-		assert_eq!(KittiesModule::kitties(100, 0), Some(kitty.clone()));
-		assert_eq!(KittiesModule::next_kitty_id(), 1);
+		assert_eq!(KittiesModule::kitties(&100, 0), Some(kitty.clone()));
+		assert_eq!(Nft::tokens(KittiesModule::class_id(), 0).unwrap().owner, 100);
 
 		System::assert_last_event(Event::KittiesModule(crate::Event::<Test>::KittyCreated(100, 0, kitty)));
 	});
@@ -137,8 +153,8 @@ fn can_breed() {
 
 		let kitty = Kitty([187, 250, 235, 118, 211, 247, 237, 253, 187, 239, 191, 185, 239, 171, 211, 122]);
 
-		assert_eq!(KittiesModule::kitties(100, 2), Some(kitty.clone()));
-		assert_eq!(KittiesModule::next_kitty_id(), 3);
+		assert_eq!(KittiesModule::kitties(&100, 2), Some(kitty.clone()));
+		assert_eq!(Nft::tokens(KittiesModule::class_id(), 2).unwrap().owner, 100);
 
 		System::assert_last_event(Event::KittiesModule(crate::Event::<Test>::KittyBred(100u64, 2u32, kitty)));
 	});
@@ -150,14 +166,11 @@ fn can_transfer() {
 		assert_ok!(KittiesModule::create(Origin::signed(100)));
 		assert_ok!(KittiesModule::set_price(Origin::signed(100), 0, Some(10)));
 
-		assert_noop!(KittiesModule::transfer(Origin::signed(101), 200, 0), Error::<Test>::InvalidKittyId);
+		assert_noop!(KittiesModule::transfer(Origin::signed(101), 200, 0), orml_nft::Error::<Test>::NoPermission);
 
 		assert_ok!(KittiesModule::transfer(Origin::signed(100), 200, 0));
 
-		let kitty = Kitty([59, 250, 138, 82, 209, 39, 141, 109, 163, 238, 183, 145, 235, 168, 18, 122]);
-
-		assert_eq!(KittiesModule::kitties(200, 0), Some(kitty));
-		assert_eq!(Kitties::<Test>::contains_key(100, 0), false);
+		assert_eq!(Nft::tokens(KittiesModule::class_id(), 0).unwrap().owner, 200);
 		assert_eq!(KittyPrices::<Test>::contains_key(0), false);
 
 		System::assert_last_event(Event::KittiesModule(crate::Event::KittyTransferred(100, 200, 0)));
@@ -171,13 +184,11 @@ fn handle_self_transfer() {
 
 		System::reset_events();
 
-		assert_noop!(KittiesModule::transfer(Origin::signed(100), 100, 1), Error::<Test>::InvalidKittyId);
+		assert_noop!(KittiesModule::transfer(Origin::signed(100), 100, 1), orml_nft::Error::<Test>::TokenNotFound);
 
 		assert_ok!(KittiesModule::transfer(Origin::signed(100), 100, 0));
 
-		let kitty = Kitty([59, 250, 138, 82, 209, 39, 141, 109, 163, 238, 183, 145, 235, 168, 18, 122]);
-
-		assert_eq!(KittiesModule::kitties(100, 0), Some(kitty));
+		assert_eq!(Nft::tokens(KittiesModule::class_id(), 0).unwrap().owner, 100);
 
 		// no transfer event because no actual transfer is executed
 		assert_eq!(System::events().len(), 0);
@@ -209,10 +220,8 @@ fn can_buy() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(KittiesModule::create(Origin::signed(100)));
 
-		let kitty = KittiesModule::kitties(100, 0).unwrap();
-
 		assert_noop!(KittiesModule::buy(Origin::signed(100), 100, 0, 10), Error::<Test>::BuyFromSelf);
-		assert_noop!(KittiesModule::buy(Origin::signed(200), 100, 1, 10), Error::<Test>::InvalidKittyId);
+		assert_noop!(KittiesModule::buy(Origin::signed(200), 100, 1, 10), Error::<Test>::NotForSale);
 		assert_noop!(KittiesModule::buy(Origin::signed(200), 100, 0, 10), Error::<Test>::NotForSale);
 
 		assert_ok!(KittiesModule::set_price(Origin::signed(100), 0, Some(600)));
@@ -226,8 +235,7 @@ fn can_buy() {
 		assert_ok!(KittiesModule::buy(Origin::signed(200), 100, 0, 500));
 
 		assert_eq!(KittyPrices::<Test>::contains_key(0), false);
-		assert_eq!(Kitties::<Test>::contains_key(100, 0), false);
-		assert_eq!(KittiesModule::kitties(200, 0), Some(kitty));
+		assert_eq!(Nft::tokens(KittiesModule::class_id(), 0).unwrap().owner, 200);
 		assert_eq!(Balances::free_balance(100), 400);
 		assert_eq!(Balances::free_balance(200), 100);
 

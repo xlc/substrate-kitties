@@ -54,6 +54,7 @@ std = [
     'sp-transaction-pool/std',
     'sp-version/std',
     'pallet-kitties/std',
+    'orml-nft/std',
 ]
 [dependencies.codec]
 default-features = false
@@ -225,3 +226,8 @@ default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.8'
 version = '3.0.0'
+
+[dependencies.orml-nft]
+default-features = false
+git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
+rev = '8f0d824fb33e6430282453e45c4a64b89dc5a44a'
