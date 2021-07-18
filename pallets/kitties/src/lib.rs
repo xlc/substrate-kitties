@@ -143,26 +143,7 @@ pub mod pallet {
 			let kitty1 = Self::kitties(&sender, kitty_id_1).ok_or(Error::<T>::InvalidKittyId)?;
 			let kitty2 = Self::kitties(&sender, kitty_id_2).ok_or(Error::<T>::InvalidKittyId)?;
 
-			ensure!(kitty1.gender() != kitty2.gender(), Error::<T>::SameGender);
-
-			let kitty1_dna = kitty1.0;
-			let kitty2_dna = kitty2.0;
-
-			let selector = Self::random_value(&sender);
-			let mut new_dna = [0u8; 16];
-
-			// Combine parents and selector to create new kitty
-			for i in 0..kitty1_dna.len() {
-				new_dna[i] = combine_dna(kitty1_dna[i], kitty2_dna[i], selector[i]);
-			}
-
-			let new_kitty = Kitty(new_dna);
-
-			let kitty_id = orml_nft::Pallet::<T>::mint(&sender, Self::class_id(), Vec::new(), new_kitty.clone())?;
-
-			Self::deposit_event(Event::KittyBred(sender, kitty_id, new_kitty));
-
-			Ok(())
+			Self::do_breed(sender, kitty1, kitty2)
 		}
 
 		/// Transfer a kitty to new owner
@@ -242,5 +223,31 @@ impl<T: Config> Pallet<T> {
 			<frame_system::Pallet<T>>::extrinsic_index(),
 		);
 		payload.using_encoded(blake2_128)
+	}
+
+	fn do_breed(
+		owner: T::AccountId,
+		kitty1: Kitty,
+		kitty2: Kitty,
+	) -> DispatchResult {
+		ensure!(kitty1.gender() != kitty2.gender(), Error::<T>::SameGender);
+
+		let kitty1_dna = kitty1.0;
+		let kitty2_dna = kitty2.0;
+
+		let selector = Self::random_value(&owner);
+		let mut new_dna = [0u8; 16];
+
+		// Combine parents and selector to create new kitty
+		for i in 0..kitty1_dna.len() {
+			new_dna[i] = combine_dna(kitty1_dna[i], kitty2_dna[i], selector[i]);
+		}
+
+		let new_kitty = Kitty(new_dna);
+		let kitty_id = orml_nft::Pallet::<T>::mint(&owner, Self::class_id(), Vec::new(), new_kitty.clone())?;
+
+		Self::deposit_event(Event::KittyBred(owner, kitty_id, new_kitty));
+
+		Ok(())
 	}
 }
