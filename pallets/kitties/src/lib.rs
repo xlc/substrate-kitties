@@ -5,9 +5,20 @@ use frame_support::{
 	traits::{Randomness, Currency, ExistenceRequirement},
 	transactional,
 };
-use frame_system::pallet_prelude::*;
-use sp_std::prelude::*;
+use frame_system::{
+	pallet_prelude::*,
+	offchain::{SendTransactionTypes, SubmitTransaction},
+};
+use sp_std::{
+	prelude::*,
+	convert::TryInto
+};
 use sp_io::hashing::blake2_128;
+use sp_runtime::offchain::storage_lock::{StorageLock, BlockAndTime};
+use rand_chacha::{
+	rand_core::{RngCore, SeedableRng},
+	ChaChaRng,
+};
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
@@ -46,7 +57,7 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + orml_nft::Config<TokenData = Kitty, ClassData = ()> {
+	pub trait Config: frame_system::Config + orml_nft::Config<TokenData = Kitty, ClassData = ()> + SendTransactionTypes<Call<Self>> {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		type Currency: Currency<Self::AccountId>;
@@ -122,6 +133,13 @@ pub mod pallet {
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
+		fn offchain_worker(_now: T::BlockNumber) {
+			let _ = Self::run_offchain_worker();
+		}
+	}
 
 	#[pallet::call]
 	impl<T:Config> Pallet<T> {
@@ -302,5 +320,56 @@ impl<T: Config> Pallet<T> {
 		let difficulty = T::DefaultDifficulty::get();
 
 		hash_value < (u128::max_value() / difficulty as u128)
+	}
+
+	fn run_offchain_worker() -> Result<(), ()> {
+		let mut lock = StorageLock::<'_, BlockAndTime<frame_system::Pallet<T>>>::with_block_deadline(&b"kitties/lock"[..], 1);
+		let _guard = lock.try_lock().map_err(|_| ())?;
+
+		let random_seed = sp_io::offchain::random_seed();
+		let mut rng = ChaChaRng::from_seed(random_seed);
+
+		// this only support if kitty_count <= u32::max_value()
+		let kitty_count = TryInto::<u32>::try_into(orml_nft::Pallet::<T>::next_token_id(Self::class_id())).map_err(|_| ())?;
+
+		if kitty_count == 0 {
+			return Ok(());
+		}
+
+		const MAX_ITERATIONS: u128 = 500;
+
+		let nonce = Self::auto_breed_nonce();
+
+		let mut remaining_iterations = MAX_ITERATIONS;
+
+		let (kitty_1, kitty_2) = loop {
+			let kitty_id_1: KittyIndexOf<T> = (rng.next_u32() % kitty_count).into();
+			let kitty_id_2: KittyIndexOf<T> = (rng.next_u32() % kitty_count).into();
+
+			let kitty_1 = orml_nft::Pallet::<T>::tokens(Self::class_id(), kitty_id_1).ok_or(())?;
+			let kitty_2 = orml_nft::Pallet::<T>::tokens(Self::class_id(), kitty_id_2).ok_or(())?;
+
+			if kitty_1.data.gender() != kitty_2.data.gender() {
+				break (kitty_id_1, kitty_id_2);
+			}
+
+			remaining_iterations -= 1;
+
+			if remaining_iterations == 0 {
+				return Err(());
+			}
+		};
+
+		let solution_prefix = rng.next_u32() as u128;
+
+		for i in 0 .. remaining_iterations {
+			let solution = (solution_prefix << 32) + i;
+			if Self::validate_solution(kitty_1, kitty_2, nonce, solution) {
+				let _ = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(Call::<T>::auto_breed(kitty_1, kitty_2, nonce, solution).into());
+				break;
+			}
+		}
+
+		Ok(())
 	}
 }

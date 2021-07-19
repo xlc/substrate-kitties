@@ -7,6 +7,7 @@ use frame_support::{
 };
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
+	testing::TestXt,
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -106,6 +107,17 @@ impl Config for Test {
 	type Currency = Balances;
 	type WeightInfo = ();
 	type DefaultDifficulty = DefaultDifficulty;
+}
+
+/// An extrinsic type used for tests.
+pub type Extrinsic = TestXt<Call, ()>;
+
+impl<LocalCall> SendTransactionTypes<LocalCall> for Test
+where
+	Call: From<LocalCall>,
+{
+	type OverarchingCall = Call;
+	type Extrinsic = Extrinsic;
 }
 
 // Build genesis storage according to the mock runtime.

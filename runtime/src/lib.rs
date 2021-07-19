@@ -300,6 +300,14 @@ impl orml_nft::Config for Runtime {
 	type MaxTokenMetadata = MaxTokenMetadata;
 }
 
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+where
+	Call: From<C>,
+{
+	type OverarchingCall = Call;
+	type Extrinsic = UncheckedExtrinsic;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub enum Runtime where
@@ -318,7 +326,7 @@ construct_runtime!(
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template::{Pallet, Call, Storage, Event<T>},
 		// Substrate Kitties pallet
-		Kitties: pallet_kitties::{Pallet, Storage, Call, Event<T>, Config},
+		Kitties: pallet_kitties::{Pallet, Storage, Call, Event<T>, Config, ValidateUnsigned},
 		Nft: orml_nft::{Pallet, Storage, Config<T>},
 	}
 );
