@@ -274,11 +274,16 @@ impl pallet_template::Config for Runtime {
 	type Event = Event;
 }
 
+parameter_types! {
+	pub const DefaultDifficulty: u32 = 100000;
+}
+
 impl pallet_kitties::Config for Runtime {
 	type Event = Event;
 	type Randomness = RandomnessCollectiveFlip;
 	type Currency = Balances;
 	type WeightInfo = weights::pallet_kitties::WeightInfo<Runtime>;
+	type DefaultDifficulty = DefaultDifficulty;
 }
 
 parameter_types! {

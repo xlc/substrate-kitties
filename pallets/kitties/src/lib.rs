@@ -51,6 +51,8 @@ pub mod pallet {
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		type Currency: Currency<Self::AccountId>;
 		type WeightInfo: WeightInfo;
+		#[pallet::constant]
+		type DefaultDifficulty: Get<u32>;
 	}
 
 	pub type KittyIndexOf<T> = <T as orml_nft::Config>::TokenId;
@@ -69,6 +71,11 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn class_id)]
 	pub type ClassId<T: Config> = StorageValue<_, T::ClassId, ValueQuery>;
+
+	/// Nonce for auto breed to prevent replay attack
+	#[pallet::storage]
+	#[pallet::getter(fn auto_breed_nonce)]
+	pub type AutoBreedNonce<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::genesis_config]
 	#[derive(Default)]
@@ -198,6 +205,43 @@ pub mod pallet {
 				Ok(())
 			})
 		}
+
+		#[pallet::weight(1000)]
+		pub fn auto_breed(origin: OriginFor<T>, kitty_id_1: KittyIndexOf<T>, kitty_id_2: KittyIndexOf<T>, _nonce: u32, _solution: u128) -> DispatchResult {
+			ensure_none(origin)?;
+
+			let kitty1 = orml_nft::Pallet::<T>::tokens(Self::class_id(), kitty_id_1).ok_or(Error::<T>::InvalidKittyId)?;
+			let kitty2 = orml_nft::Pallet::<T>::tokens(Self::class_id(), kitty_id_2).ok_or(Error::<T>::InvalidKittyId)?;
+
+			Self::do_breed(kitty1.owner, kitty1.data, kitty2.data)
+		}
+	}
+
+	#[pallet::validate_unsigned]
+	impl<T: Config> frame_support::unsigned::ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			match *call {
+				Call::auto_breed(kitty_id_1, kitty_id_2, nonce, solution) => {
+					if Self::validate_solution(kitty_id_1, kitty_id_2, nonce, solution) {
+						if nonce != Self::auto_breed_nonce() {
+							return InvalidTransaction::BadProof.into();
+						}
+
+						AutoBreedNonce::<T>::mutate(|nonce| *nonce = nonce.saturating_add(1));
+
+						ValidTransaction::with_tag_prefix("kitties")
+							.longevity(64_u64)
+							.propagate(true)
+							.build()
+					} else {
+						InvalidTransaction::BadProof.into()
+					}
+				},
+				_ => InvalidTransaction::Call.into(),
+			}
+		}
 	}
 }
 
@@ -249,5 +293,14 @@ impl<T: Config> Pallet<T> {
 		Self::deposit_event(Event::KittyBred(owner, kitty_id, new_kitty));
 
 		Ok(())
+	}
+
+	fn validate_solution(kitty_id_1: KittyIndexOf<T>, kitty_id_2: KittyIndexOf<T>, nonce: u32, solution: u128) -> bool {
+		let payload = (kitty_id_1, kitty_id_2, nonce, solution);
+		let hash = payload.using_encoded(blake2_128);
+		let hash_value = u128::from_le_bytes(hash);
+		let difficulty = T::DefaultDifficulty::get();
+
+		hash_value < (u128::max_value() / difficulty as u128)
 	}
 }

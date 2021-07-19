@@ -2,7 +2,9 @@ use super::*;
 
 use crate as kitties;
 use sp_core::H256;
-use frame_support::{parameter_types, assert_ok, assert_noop};
+use frame_support::{
+	parameter_types, assert_ok, assert_noop, error::BadOrigin, unsigned::ValidateUnsigned,
+};
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
@@ -94,11 +96,16 @@ impl orml_nft::Config for Test {
 	type MaxTokenMetadata = MaxTokenMetadata;
 }
 
+parameter_types! {
+	pub const DefaultDifficulty: u32 = 3;
+}
+
 impl Config for Test {
 	type Event = Event;
 	type Randomness = MockRandom;
 	type Currency = Balances;
 	type WeightInfo = ();
+	type DefaultDifficulty = DefaultDifficulty;
 }
 
 // Build genesis storage according to the mock runtime.
@@ -241,5 +248,61 @@ fn can_buy() {
 		assert_eq!(Balances::free_balance(200), 100);
 
 		System::assert_last_event(Event::KittiesModule(crate::Event::KittySold(100, 200, 0, 400)));
+	});
+}
+
+#[test]
+fn can_auto_breed() {
+	new_test_ext().execute_with(|| {
+		// nonce and solution are not checked by auto_breed directly
+
+		assert_ok!(KittiesModule::create(Origin::signed(100)));
+		assert_ok!(KittiesModule::create(Origin::signed(101)));
+
+		assert_noop!(KittiesModule::auto_breed(Origin::none(), 0, 2, 0, 0), Error::<Test>::InvalidKittyId);
+		assert_noop!(KittiesModule::auto_breed(Origin::none(), 0, 0, 0, 0), Error::<Test>::SameGender);
+		assert_noop!(KittiesModule::auto_breed(Origin::signed(100), 0, 1, 0, 0), BadOrigin);
+
+		assert_ok!(KittiesModule::auto_breed(Origin::none(), 0, 1, 0, 0));
+
+		let kitty = Kitty([34, 170, 2, 80, 145, 37, 4, 36, 35, 32, 179, 144, 169, 40, 2, 18]);
+
+		assert_eq!(KittiesModule::kitties(&100, 2), Some(kitty.clone()));
+		assert_eq!(Nft::tokens(KittiesModule::class_id(), 2).unwrap().owner, 100);
+
+		System::assert_last_event(Event::KittiesModule(crate::Event::KittyBred(100, 2, kitty)));
+	});
+}
+
+#[test]
+fn can_validate_unsigned() {
+	new_test_ext().execute_with(|| {
+		// only check nonce and solution are valid
+
+		assert_eq!(KittiesModule::validate_unsigned(TransactionSource::InBlock, &crate::Call::auto_breed(0, 1, 0, 0)), InvalidTransaction::BadProof.into());
+		assert_eq!(KittiesModule::validate_unsigned(TransactionSource::InBlock, &crate::Call::auto_breed(0, 1, 0, 1)), InvalidTransaction::BadProof.into());
+		assert_eq!(KittiesModule::validate_unsigned(TransactionSource::InBlock, &crate::Call::auto_breed(0, 1, 0, 2)), TransactionValidity::Ok(ValidTransaction {
+			priority: 0,
+			requires: vec![],
+			provides: vec![],
+			longevity: 64,
+			propagate: true,
+		}));
+
+		assert_eq!(KittiesModule::auto_breed_nonce(), 1);
+
+		assert_eq!(KittiesModule::validate_unsigned(TransactionSource::InBlock, &crate::Call::auto_breed(0, 1, 0, 2)), InvalidTransaction::BadProof.into());
+
+		assert_eq!(KittiesModule::validate_unsigned(TransactionSource::InBlock, &crate::Call::auto_breed(0, 1, 1, 11)), InvalidTransaction::BadProof.into());
+		assert_eq!(KittiesModule::validate_unsigned(TransactionSource::InBlock, &crate::Call::auto_breed(0, 1, 1, 12)), InvalidTransaction::BadProof.into());
+		assert_eq!(KittiesModule::validate_unsigned(TransactionSource::InBlock, &crate::Call::auto_breed(0, 1, 1, 13)), TransactionValidity::Ok(ValidTransaction {
+			priority: 0,
+			requires: vec![],
+			provides: vec![],
+			longevity: 64,
+			propagate: true,
+		}));
+
+		assert_eq!(KittiesModule::auto_breed_nonce(), 2);
 	});
 }
